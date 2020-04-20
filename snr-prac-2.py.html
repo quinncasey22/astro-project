@@ -69,7 +69,7 @@ print(ha_new)
 
 
 ha_new = np.array(ha_new)
-ha_new_fin = ha_new[np.where(ha_new >= 30)]
+ha_new_fin = ha_new[np.where(ha_new >= 5)]
 print(ha_new_fin)
 len(ha_new_fin)
 
@@ -90,7 +90,7 @@ hb_new = tuple(ele1 // ele2 for ele1, ele2 in zip(hb, hb_err2))
 
 
 hb_new = np.array(hb_new)
-hb_new_fin = hb_new[np.where(hb_new >= 30)]
+hb_new_fin = hb_new[np.where(hb_new >= 5)]
 print(hb_new_fin)
 len(hb_new_fin)
 
@@ -148,7 +148,7 @@ o3_new = tuple(ele1 // ele2 for ele1, ele2 in zip(o3, o3_err2))
 
 
 n2_new = np.array(n2_new)
-n2_new_fin = n2_new[np.where(n2_new >= 30)]
+n2_new_fin = n2_new[np.where(n2_new >= 5)]
 print(n2_new_fin)
 len(n2_new_fin)
 
@@ -157,7 +157,7 @@ len(n2_new_fin)
 
 
 o3_new = np.array(o3_new)
-o3_new_fin = o3_new[np.where(o3_new >= 30)]
+o3_new_fin = o3_new[np.where(o3_new >= 5)]
 print(o3_new_fin)
 len(o3_new_fin)
 
