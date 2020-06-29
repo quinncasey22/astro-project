@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[17]:
 
 
 import matplotlib
@@ -11,14 +10,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
-# In[2]:
 
 
 hdu = fits.open('galSpecLine-dr8.fits')
 hdu1 = fits.open('galSpecInfo-dr8.fits')
 
 
-# In[3]:
 
 
 ha = hdu[1].data['H_ALPHA_FLUX'].tolist()
@@ -31,7 +28,6 @@ o3 = hdu[1].data['OIII_5007_FLUX'].tolist()
 o3_err = hdu[1].data['OIII_5007_FLUX_ERR'].tolist()
 
 
-# In[4]:
 
 
 hg = hdu[1].data['H_GAMMA_FLUX'].tolist()
@@ -48,13 +44,11 @@ plate_lst = hdu[1].data['PLATEID'].tolist()
 rel = hdu1[1].data['RELIABLE'].tolist()
 
 
-# In[5]:
 
 
 z = hdu1[1].data['Z'].tolist()
 
 
-# In[6]:
 
 
 o2a = hdu[1].data['OII_3726_FLUX'].tolist()
@@ -66,7 +60,6 @@ for (item1, item2) in zip(o2a, o2b):
 print(o2)
 
 
-# In[7]:
 
 
 o2a_err = hdu[1].data['OII_3726_FLUX_ERR'].tolist()
@@ -78,13 +71,11 @@ for (item1, item2) in zip(o2a_err, o2b_err):
 print(o2_err)
 
 
-# In[8]:
 
 
 z_warn = hdu1[1].data['Z_WARNING'].tolist()
 
 
-# In[9]:
 
 
 data_names = ['ha', 'ha_err', 'hb', 'hb_err', 'n2', 'n2_err', 'o3', 'o3_err', 'hg', 'hg_err', 'ne3', 'ne3_err', 'o2', 'o2_err', 'mjd', 'fiber', 'plate', 'reliable', 'z', 'z_warn']
@@ -92,13 +83,12 @@ data_dict = {'ha':ha, 'ha_err':ha_err, 'hb':hb, 'hb_err':hb_err, 'n2':n2, 'n2_er
 df = pd.DataFrame(data_dict)
 
 
-# In[10]:
 
 
 for name in data_names: 
     df = df.loc[df[name].notnull()]
 
-# Making the SNR cuts
+# Making the SNR cuts & Z cut
 df = df.loc[(df['ha']/df['ha_err']) > 5]
 df = df.loc[(df['hb']/df['hb_err']) > 5]
 df = df.loc[(df['n2']/df['n2_err']) > 5]
@@ -108,14 +98,6 @@ df = df.loc[(df['ne3']/df['ne3_err']) > 5]
 df = df.loc[(df['o2']/df['o2_err']) > 5]
 df = df.query('z > 0.2 & z < 0.4')
 
-
-# In[11]:
-
-
-df
-
-
-# In[38]:
 
 
 def bpt_kaufmann():
@@ -159,8 +141,6 @@ def plot_bpt(nii,halpha,oiii,hbeta,fig=None,**kwargs):
     return
 
 
-# In[25]:
-
 
 nii = df['n2'].values
 halpha = df['ha'].values
@@ -170,13 +150,6 @@ hbeta = df['hb'].values
 plot_bpt(nii, halpha, oiii, hbeta, s = 1, alpha = .5)
 
 
-# In[26]:
-
-
-df
-
-
-# In[29]:
 
 
 def func(df):
@@ -203,7 +176,6 @@ def func(df):
     return df, mjd_lst, plate_lst, fiber_lst, rel, ha, ha_err, hb, hb_err, n2, n2_err, o3, o3_err, hg, hg_err, ne3, ne3_err, o2, o2_err
 
 
-# In[30]:
 
 
 df['x'] = np.log10(df['n2']/df['ha'])
@@ -212,44 +184,28 @@ df['y'] = np.log10(df['o3']/df['hb'])
 df = func(df)
 
 
-# In[31]:
-
-
-df
-
-
-# In[32]:
 
 
 df = pd.DataFrame(df)
 
 
-# In[33]:
 
 
 df = df.transpose()
 
 
-# In[34]:
 
 
 df.columns = ['Type', 'MJD', 'Plate', 'Fiber', 'reliable', 'ha', 'ha_err', 'hb', 'hb_err', 'n2', 'n2_err', 'o3', 'o3_err', 'hg', 'hg_err', 'ne3', 'ne3_err', 'o2', 'o2_err']
 
 
-# In[35]:
 
 
 df = df[df['Type'].notna()]
 df = df[df.reliable != 0]
 
 
-# In[36]:
 
-
-df
-
-
-# In[39]:
 
 
 nii = df['n2'].values
@@ -258,10 +214,3 @@ oiii = df['o3'].values
 hbeta = df['hb'].values
 
 plot_bpt(nii, halpha, oiii, hbeta, c = 'g', s = 1, alpha = .5)
-
-
-# In[ ]:
-
-
-
-
