@@ -1,0 +1,267 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[17]:
+
+
+import matplotlib
+import numpy as np
+from astropy.io import fits
+import matplotlib.pyplot as plt
+import pandas as pd
+
+
+# In[2]:
+
+
+hdu = fits.open('galSpecLine-dr8.fits')
+hdu1 = fits.open('galSpecInfo-dr8.fits')
+
+
+# In[3]:
+
+
+ha = hdu[1].data['H_ALPHA_FLUX'].tolist()
+ha_err = hdu[1].data['H_ALPHA_FLUX_ERR'].tolist()
+hb = hdu[1].data['H_BETA_FLUX'].tolist()
+hb_err = hdu[1].data['H_BETA_FLUX_ERR'].tolist()
+n2 = hdu[1].data['NII_6584_FLUX'].tolist()
+n2_err = hdu[1].data['NII_6584_FLUX_ERR'].tolist()
+o3 = hdu[1].data['OIII_5007_FLUX'].tolist()
+o3_err = hdu[1].data['OIII_5007_FLUX_ERR'].tolist()
+
+
+# In[4]:
+
+
+hg = hdu[1].data['H_GAMMA_FLUX'].tolist()
+hg_err = hdu[1].data['H_GAMMA_FLUX_ERR'].tolist()
+ne3 = hdu[1].data['NEIII_3869_FLUX'].tolist()
+ne3_err = hdu[1].data['NEIII_3869_FLUX_ERR'].tolist()
+o2a = hdu[1].data['OII_3726_FLUX'].tolist()
+o2a_err = hdu[1].data['OII_3726_FLUX_ERR'].tolist()
+o2b = hdu[1].data['OII_3729_FLUX'].tolist()
+o2b_err = hdu[1].data['OII_3729_FLUX_ERR'].tolist()
+mjd_lst = hdu[1].data['MJD'].tolist()
+fiber_lst = hdu[1].data['FIBERID'].tolist()
+plate_lst = hdu[1].data['PLATEID'].tolist()
+rel = hdu1[1].data['RELIABLE'].tolist()
+
+
+# In[5]:
+
+
+z = hdu1[1].data['Z'].tolist()
+
+
+# In[6]:
+
+
+o2a = hdu[1].data['OII_3726_FLUX'].tolist()
+o2b = hdu[1].data['OII_3729_FLUX'].tolist()
+o2=[]
+for (item1, item2) in zip(o2a, o2b):
+    o2.append(item1 + item2)
+    
+print(o2)
+
+
+# In[7]:
+
+
+o2a_err = hdu[1].data['OII_3726_FLUX_ERR'].tolist()
+o2b_err = hdu[1].data['OII_3729_FLUX_ERR'].tolist()
+o2_err=[]
+for (item1, item2) in zip(o2a_err, o2b_err):
+    o2_err.append(item1 + item2)
+    
+print(o2_err)
+
+
+# In[8]:
+
+
+z_warn = hdu1[1].data['Z_WARNING'].tolist()
+
+
+# In[9]:
+
+
+data_names = ['ha', 'ha_err', 'hb', 'hb_err', 'n2', 'n2_err', 'o3', 'o3_err', 'hg', 'hg_err', 'ne3', 'ne3_err', 'o2', 'o2_err', 'mjd', 'fiber', 'plate', 'reliable', 'z', 'z_warn']
+data_dict = {'ha':ha, 'ha_err':ha_err, 'hb':hb, 'hb_err':hb_err, 'n2':n2, 'n2_err':n2_err, 'o3':o3, 'o3_err':o3_err, 'hg':hg, 'hg_err':hg_err, 'ne3':ne3, 'ne3_err':ne3_err, 'o2':o2, 'o2_err':o2_err, 'mjd':mjd_lst, 'fiber':fiber_lst, 'plate':plate_lst, 'reliable':rel, 'z' : z, 'z_warn' : z_warn}
+df = pd.DataFrame(data_dict)
+
+
+# In[10]:
+
+
+for name in data_names: 
+    df = df.loc[df[name].notnull()]
+
+# Making the SNR cuts
+df = df.loc[(df['ha']/df['ha_err']) > 5]
+df = df.loc[(df['hb']/df['hb_err']) > 5]
+df = df.loc[(df['n2']/df['n2_err']) > 5]
+df = df.loc[(df['o3']/df['o3_err']) > 5]
+df = df.loc[(df['hg']/df['hg_err']) > 5]
+df = df.loc[(df['ne3']/df['ne3_err']) > 5]
+df = df.loc[(df['o2']/df['o2_err']) > 5]
+df = df.query('z > 0.2 & z < 0.4')
+
+
+# In[11]:
+
+
+df
+
+
+# In[38]:
+
+
+def bpt_kaufmann():
+    x=np.linspace(-2,0,500)
+    logdivline=(0.61/(x-0.05))+1.3
+    return x, logdivline
+
+#log([nii]/ha) is on the x-axis
+#log([oiii]/hb) is on the y-axis
+def bpt_kewley():
+    x=np.linspace(-2,0.46,500)
+    logdivlinek=(0.61/(x-0.47))+1.19
+    return x, logdivlinek
+
+#log([nii]/ha) is on the x-axis
+#log([oiii]/hb) is on the y-axis
+def bpt_liner():
+    x=np.linspace(-0.133638005,0.75,100)
+    y=2.1445*x+0.465
+    return x,y
+
+def plot_bpt(nii,halpha,oiii,hbeta,fig=None,**kwargs):
+    halpha=np.array(halpha,dtype=float)
+    nii=np.array(nii,dtype=float)
+    hbeta=np.array(hbeta,dtype=float)
+    oiii=np.array(oiii,dtype=float)
+    n2ha=np.log10(nii/halpha)
+    o3hb=np.log10(oiii/hbeta)
+    kaufmann=bpt_kaufmann()
+    kewley=bpt_kewley()
+    liner=bpt_liner()
+    plt.scatter(n2ha,o3hb, **kwargs)
+    plt.plot(kaufmann[0],kaufmann[1],c='b')
+    plt.plot(kewley[0],kewley[1],c='r',linestyle='--')
+    plt.plot(liner[0],liner[1],c='k',linestyle='-.')
+    plt.xlim(-2,1)
+    plt.ylim(-1.5,1.5)
+    plt.xlabel(r'$log_{10}($[NII]/h$\alpha)$')
+    plt.ylabel(r'$log_{10}($[OIII]/h$\beta)$')
+    plt.show()
+    return
+
+
+# In[25]:
+
+
+nii = df['n2'].values
+halpha = df['ha'].values
+oiii = df['o3'].values
+hbeta = df['hb'].values
+
+plot_bpt(nii, halpha, oiii, hbeta, s = 1, alpha = .5)
+
+
+# In[26]:
+
+
+df
+
+
+# In[29]:
+
+
+def func(df):
+    x_values = df.x.values
+    y_values = df.y.values.tolist()
+    
+    kaufmann_value = (0.61/(x_values-.05))+1.3
+    kewley_value = (0.61/(x_values-0.47))+1.19
+    liner_value = 2.1445*x_values+0.465
+    
+    df = []
+  
+    
+    for y,x,kauf,kewl,liner in zip(y_values,x_values,kaufmann_value, kewley_value, liner_value):
+        if y < kauf and y < kewl:
+            df.append('star-forming')
+    
+        elif y > kewl and x < liner:
+            df.append('agns')
+           
+
+
+    
+    return df, mjd_lst, plate_lst, fiber_lst, rel, ha, ha_err, hb, hb_err, n2, n2_err, o3, o3_err, hg, hg_err, ne3, ne3_err, o2, o2_err
+
+
+# In[30]:
+
+
+df['x'] = np.log10(df['n2']/df['ha'])
+df['y'] = np.log10(df['o3']/df['hb'])
+
+df = func(df)
+
+
+# In[31]:
+
+
+df
+
+
+# In[32]:
+
+
+df = pd.DataFrame(df)
+
+
+# In[33]:
+
+
+df = df.transpose()
+
+
+# In[34]:
+
+
+df.columns = ['Type', 'MJD', 'Plate', 'Fiber', 'reliable', 'ha', 'ha_err', 'hb', 'hb_err', 'n2', 'n2_err', 'o3', 'o3_err', 'hg', 'hg_err', 'ne3', 'ne3_err', 'o2', 'o2_err']
+
+
+# In[35]:
+
+
+df = df[df['Type'].notna()]
+df = df[df.reliable != 0]
+
+
+# In[36]:
+
+
+df
+
+
+# In[39]:
+
+
+nii = df['n2'].values
+halpha = df['ha'].values
+oiii = df['o3'].values
+hbeta = df['hb'].values
+
+plot_bpt(nii, halpha, oiii, hbeta, c = 'g', s = 1, alpha = .5)
+
+
+# In[ ]:
+
+
+
+
