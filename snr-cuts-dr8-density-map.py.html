@@ -1,0 +1,207 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+import numpy as np
+from astropy.io import fits
+import matplotlib.pyplot as plt
+import pandas as pd
+from scipy.stats import gaussian_kde
+from matplotlib import cm
+from matplotlib.colors import Normalize 
+from scipy.interpolate import interpn
+
+
+# In[2]:
+
+
+hdu = fits.open('galSpecLine-dr8.fits')
+
+
+# In[3]:
+
+
+#defining emission line varaibles
+ha = hdu[1].data['H_ALPHA_FLUX'].tolist()
+ha_err = hdu[1].data['H_ALPHA_FLUX_ERR'].tolist()
+hb = hdu[1].data['H_BETA_FLUX'].tolist()
+hb_err = hdu[1].data['H_BETA_FLUX_ERR'].tolist()
+n2 = hdu[1].data['NII_6584_FLUX'].tolist()
+n2_err = hdu[1].data['NII_6584_FLUX_ERR'].tolist()
+o3 = hdu[1].data['OIII_5007_FLUX'].tolist()
+o3_err = hdu[1].data['OIII_5007_FLUX_ERR'].tolist()
+
+
+# In[4]:
+
+
+data_names = ['ha', 'ha_err', 'hb', 'hb_err', 'n2', 'n2_err', 'o3', 'o3_err'] 
+data_dict = {'ha' : ha, 'ha_err' : ha_err, 'hb' : hb, 'hb_err' : hb_err, 'n2' : n2,  'n2_err' : n2_err, 'o3' : o3, 'o3_err' : o3_err}
+data_df = pd.DataFrame(data_dict) # A pandas dataframe is similar to a microsoft excel sheet -> easy to organize
+
+
+# In[5]:
+
+
+for name in data_names: 
+    data_df = data_df.loc[data_df[name].notnull()]
+
+
+# In[6]:
+
+
+# Making SNR cuts
+data_df = data_df.loc[(data_df['n2']/data_df['n2_err']) > 5]
+data_df = data_df.loc[(data_df['ha']/data_df['ha_err']) > 5]
+data_df = data_df.loc[(data_df['hb']/data_df['hb_err']) > 5]
+data_df = data_df.loc[(data_df['o3']/data_df['o3_err']) > 5]
+
+
+# In[7]:
+
+
+def bpt_kaufmann(): 
+    x = np.linspace(-2, 0.46, 500)
+    logdivlinek = (0.61/(x-0.47))+1.19
+    return x, logdivlinek
+
+
+# In[8]:
+
+
+def bpt_kewley():
+    x=np.linspace(-2,0.46,500)
+    logdivlinek=(0.61/(x-0.47))+1.19
+    return x, logdivlinek
+
+
+# In[9]:
+
+
+# log([nii]/ha) is on the x axis
+# log([oiii]/hb) is on the y axis
+def bpt_liner():
+    x = np.linspace(-0.133638005, 0.75, 100)
+    y = 2.1445*x+0.465
+    return x, y
+
+
+# In[10]:
+
+
+def density_scatter( x , y, ax, color_map, sort = True, bins = 20, **kwargs )   :
+    """
+    Scatter plot colored by 2d histogram
+    """
+    data , x_e, y_e = np.histogram2d( x, y, bins = bins, density = True )
+    z = interpn( ( 0.5*(x_e[1:] + x_e[:-1]) , 0.5*(y_e[1:]+y_e[:-1]) ) , data , np.vstack([x,y]).T , method = "splinef2d", bounds_error = False)
+
+    #To be sure to plot all data
+    z[np.where(np.isnan(z))] = 0.0
+
+    # Sort the points by density, so that the densest points are plotted last
+    if sort :
+        idx = z.argsort()
+        x, y, z = x[idx], y[idx], z[idx]
+
+
+    norm = Normalize(vmin = np.min(z), vmax = np.max(z))
+    ax.scatter( x, y, c=z, cmap = color_map, **kwargs )
+#    cbar = fig.colorbar(cm.ScalarMappable(norm = norm), ax=ax)
+#    cbar.ax.set_ylabel('Density')
+
+    return ax
+
+
+# In[11]:
+
+
+def plot_bpt(df):
+
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    '''
+    here, i am grouping similar points by 
+    color so that I can work on each of the 
+    three groups separately
+    '''
+    df_groups = df.groupby(['colors']) 
+    
+    for name, group in df_groups:
+
+        if name == 'red':
+            color_map = 'Reds'
+        elif name == 'grey':
+            color_map = 'Greys'
+        elif name == 'blue':
+            color_map = 'Blues'
+
+        halpha = group.ha.values
+        nii = group.n2.values
+        hbeta = group.hb.values
+        oiii = group.o3.values
+        colors = group.colors
+
+        n2ha=np.log10(nii/halpha)
+        o3hb=np.log10(oiii/hbeta)
+        ax = density_scatter(n2ha, o3hb, ax, color_map = color_map)
+        #plt.scatter(n2ha,o3hb,color = number_density,s=.5)
+
+    kaufmann=bpt_kaufmann()
+    kewley=bpt_kewley()
+    liner=bpt_liner()
+    ax.plot(kaufmann[0],kaufmann[1],c='b')
+    ax.plot(kewley[0],kewley[1],c='r',linestyle='--')
+    ax.plot(liner[0],liner[1],c='w',linestyle='-.')
+    ax.set_xlim(-2,1)
+    ax.set_ylim(-1.5,1.5)
+    ax.set_xlabel(r'$log_{10}($[NII]/h$\alpha)$')
+    ax.set_ylabel(r'$log_{10}($[OIII]/h$\beta)$')
+    plt.show()
+    return
+
+
+# In[12]:
+
+
+def assign_color(df):
+    x_values = df.x.values
+    y_values = df.y.values.tolist()
+
+    kaufmann_value = (0.61/(x_values-.05))+1.3
+    kewley_value = (0.61/(x_values-0.47))+1.19
+    
+    color_list = []
+
+    for y,kauf,kewl in zip(y_values,kaufmann_value, kewley_value):
+        if y < kauf and y < kewl:
+            color_list.append('blue')
+        elif y > kauf and y < kewl:
+            color_list.append('grey')
+        else:
+            color_list.append('red')
+
+    df['colors'] = color_list
+
+    return df
+
+
+# In[13]:
+
+
+data_df['x'] = np.log10(data_df['n2']/data_df['ha'])
+data_df['y'] = np.log10(data_df['o3']/data_df['hb'])
+
+data_df = assign_color(data_df)
+
+plot_bpt(data_df)
+
+
+# In[ ]:
+
+
+
+
