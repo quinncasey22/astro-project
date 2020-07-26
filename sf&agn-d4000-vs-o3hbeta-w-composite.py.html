@@ -1,0 +1,464 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+import matplotlib
+import numpy as np
+from astropy.io import fits
+import matplotlib.pyplot as plt
+import pandas as pd
+import statistics as stats
+from matplotlib.ticker import PercentFormatter
+get_ipython().run_line_magic('matplotlib', 'inline')
+
+
+# In[2]:
+
+
+hdu = fits.open('galSpecLine-dr8.fits')
+hdu1 = fits.open('galSpecInfo-dr8.fits')
+hdu2 = fits.open('galSpecIndx-dr8.fits')
+
+
+# In[3]:
+
+
+hdu2[1].header
+
+
+# In[4]:
+
+
+ha = hdu[1].data['H_ALPHA_FLUX'].tolist()
+ha_err = hdu[1].data['H_ALPHA_FLUX_ERR'].tolist()
+hb = hdu[1].data['H_BETA_FLUX'].tolist()
+hb_err = hdu[1].data['H_BETA_FLUX_ERR'].tolist()
+n2 = hdu[1].data['NII_6584_FLUX'].tolist()
+n2_err = hdu[1].data['NII_6584_FLUX_ERR'].tolist()
+o3 = hdu[1].data['OIII_5007_FLUX'].tolist()
+o3_err = hdu[1].data['OIII_5007_FLUX_ERR'].tolist()
+d4000 = hdu2[1].data['D4000_N'].tolist()
+d4000_err = hdu2[1].data['D4000_N_ERR'].tolist()
+
+rel = hdu1[1].data['RELIABLE'].tolist()
+
+
+# In[5]:
+
+
+z = hdu1[1].data['Z'].tolist()
+z_warn = hdu1[1].data['Z_WARNING'].tolist()
+
+
+# In[6]:
+
+
+data_names = ['ha', 'ha_err', 'hb', 'hb_err', 'n2', 'n2_err', 'o3', 'o3_err', 'd4000', 'd4000_err', 'reliable', 'z', 'z_warn']
+data_dict = {'ha':ha, 'ha_err':ha_err, 'hb':hb, 'hb_err':hb_err, 'n2':n2, 'n2_err':n2_err, 'o3':o3, 'o3_err':o3_err, 'd4000':d4000, 'd4000_err':d4000_err, 'reliable':rel, 'z':z, 'z_warn':z_warn}
+df = pd.DataFrame(data_dict)
+
+
+# In[7]:
+
+
+for name in data_names: 
+    df = df.loc[df[name].notnull()]
+
+df = df[df.z_warn == 0]
+df = df.query('z > 0.2 & z < 1.0')
+
+
+# In[8]:
+
+
+def bpt_kaufmann():
+    x=np.linspace(-2,0,500)
+    logdivline=(0.61/(x-0.05))+1.3
+    return x, logdivline
+
+#log([nii]/ha) is on the x-axis
+#log([oiii]/hb) is on the y-axis
+def bpt_kewley():
+    x=np.linspace(-2,0.46,500)
+    logdivlinek=(0.61/(x-0.47))+1.19
+    return x, logdivlinek
+
+#log([nii]/ha) is on the x-axis
+#log([oiii]/hb) is on the y-axis
+def bpt_liner():
+    x=np.linspace(-0.133638005,0.75,100)
+    y=2.1445*x+0.465
+    return x,y
+
+def plot_bpt(nii,halpha,oiii,hbeta,fig=None,**kwargs):
+    halpha=np.array(halpha,dtype=float)
+    nii=np.array(nii,dtype=float)
+    hbeta=np.array(hbeta,dtype=float)
+    oiii=np.array(oiii,dtype=float)
+    n2ha=np.log10(nii/halpha)
+    o3hb=np.log10(oiii/hbeta)
+    kaufmann=bpt_kaufmann()
+    kewley=bpt_kewley()
+    liner=bpt_liner()
+    plt.scatter(n2ha,o3hb, **kwargs)
+    plt.plot(kaufmann[0],kaufmann[1],c='b')
+    plt.plot(kewley[0],kewley[1],c='r',linestyle='--')
+    plt.plot(liner[0],liner[1],c='k',linestyle='-.')
+    plt.xlim(-2,1)
+    plt.ylim(-1.5,1.5)
+    plt.xlabel(r'$log_{10}($[NII]/h$\alpha)$')
+    plt.ylabel(r'$log_{10}($[OIII]/h$\beta)$')
+    plt.show()
+    return
+
+
+# In[9]:
+
+
+nii = df['n2'].values
+halpha = df['ha'].values
+oiii = df['o3'].values
+hbeta = df['hb'].values
+
+plot_bpt(nii, halpha, oiii, hbeta, s = 1, alpha = .5)
+
+
+# In[10]:
+
+
+def func(df):
+    x_values = df.x.values
+    y_values = df.y.values.tolist()
+    
+    ha1 = df['ha'].values
+    ha_err1 = df['ha_err'].values
+    hb1 = df['hb'].values
+    hb_err1 = df['hb_err'].values
+    n21 = df['n2'].values
+    n2_err1 = df['n2_err'].values
+    o31 = df['o3'].values
+    o3_err1 = df['o3_err'].values
+    d40001 = df['d4000'].values
+    d4000_err1 = df['d4000_err'].values
+    rel1 = df['reliable'].values
+    
+    
+    kaufmann_value = (0.61/(x_values-.05))+1.3
+    kewley_value = (0.61/(x_values-0.47))+1.19
+    liner_value = 2.1445*x_values+0.465
+    
+    df = []
+    
+    for y,x,kauf,kewl,liner in zip(y_values,x_values,kaufmann_value, kewley_value, liner_value):
+        if y < kauf and y < kewl:
+            df.append('star-forming')
+        elif y > kewl and y > liner:
+            df.append('agns')
+        else: 
+            df.append('composite')
+           
+
+    return df, ha1, ha_err1, hb1, hb_err1, n21, n2_err1, o31, o3_err1, d40001, d4000_err1, rel1
+
+
+# In[11]:
+
+
+df['x'] = np.log10(df['n2']/df['ha'])
+df['y'] = np.log10(df['o3']/df['hb'])
+
+df1 = func(df)
+
+
+# In[12]:
+
+
+df1 = pd.DataFrame(df1)
+
+
+# In[13]:
+
+
+df1 = df1.transpose()
+
+
+# In[14]:
+
+
+df1.columns = ['Type', 'ha', 'ha_err', 'hb', 'hb_err', 'n2', 'n2_err', 'o3', 'o3_err', 'd4000', 'd4000_err', 'reliable']
+
+
+# In[15]:
+
+
+# Removing NaN values and gals which are neither SF or AGNs from the DF
+#Removing gals with a reliability of 0
+df1 = df1[df1['Type'].notna()]
+df1 = df1[df1.reliable != 0]
+
+
+# In[16]:
+
+
+df1
+
+
+# In[17]:
+
+
+df1 = df1.loc[(df1['hb']/df1['hb_err']) > 5]
+df1 = df1.loc[(df1['o3']/df1['o3_err']) > 5]
+
+
+# In[18]:
+
+
+df1
+
+
+# In[19]:
+
+
+print(stats.stdev(df1.d4000_err))
+print(stats.mean(df1.d4000_err))
+
+
+# In[20]:
+
+
+plt.hist(df1.d4000_err, bins=40, range=[0, 0.6], facecolor='none', edgecolor='black',weights=np.ones(len(df1.d4000_err)) / len(df1.d4000_err))
+
+plt.gca().yaxis.set_major_formatter(PercentFormatter(1))
+plt.show
+
+
+# In[21]:
+
+
+print((stats.stdev(df1.d4000_err)) + (stats.mean(df1.d4000_err)))
+
+
+# In[22]:
+
+
+df1
+
+
+# In[23]:
+
+
+df1['d4000'] = df1['d4000'].apply(lambda x: x/0.09355893723505401)
+
+
+# In[24]:
+
+
+df1
+
+
+# In[25]:
+
+
+dfagn = df1[df1.Type != 'star-forming']
+dfsf = df1[df1.Type != 'agns']
+dfcomp = df1[df1.Type != 'agns']
+
+
+# In[26]:
+
+
+dfagn = dfagn[dfagn.Type != 'composite']
+dfsf = dfsf[dfsf.Type != 'composite']
+dfcomp = dfcomp[dfcomp.Type != 'star-forming']
+
+
+# In[27]:
+
+
+dfagn
+
+
+# In[28]:
+
+
+dfsf
+
+
+# In[29]:
+
+
+dfcomp
+
+
+# In[36]:
+
+
+def plot_bpt1(d4000, oiii, hbeta, d40002, oiii2, hbeta2, d40003, oiii3, hbeta3, fig=None,**kwargs):
+    d4000=np.array(d4000,dtype=float)
+    d40002=np.array(d40002,dtype=float)
+    d40003=np.array(d40003,dtype=float)
+    oiii=np.array(oiii,dtype=float)
+    oiii2=np.array(oiii2,dtype=float)
+    oiii3=np.array(oiii3,dtype=float)
+    hbeta=np.array(hbeta, dtype=float)
+    hbeta2=np.array(hbeta2, dtype=float)
+    hbeta3=np.array(hbeta3, dtype=float)
+    d4000p=np.log10(d4000)
+    d4000p2=np.log10(d40002)
+    d4000p3=np.log10(d40003)
+    o3hb=np.log10(oiii/hbeta)
+    o3hb2=np.log10(oiii2/hbeta2)
+    o3hb3=np.log10(oiii3/hbeta3)
+    agn = plt.scatter(d4000p, o3hb, **kwargs, c='r')
+    sf = plt.scatter(d4000p2, o3hb2, **kwargs, c='g')
+    comp = plt.scatter(d4000p3, o3hb3, **kwargs, c='y')
+    plt.legend([agn, sf, comp], ['AGN', 'Star-Forming', 'Composite'])
+    plt.xlim(0.5,2.0)
+    plt.ylim(-1.5,1.5)
+    plt.xlabel(r'$log_{10}(D4000)$')
+    plt.ylabel(r'$log_{10}($[OIII]/h$\beta)$')
+    plt.show()
+    return
+
+
+# In[37]:
+
+
+d4000 = dfagn['d4000'].values 
+d40002 = dfsf['d4000'].values
+d40003 = dfcomp['d4000'].values
+oiii = dfagn['o3'].values 
+oiii2 = dfsf['o3'].values
+oiii3 = dfcomp['o3'].values
+hbeta = dfagn['hb'].values 
+hbeta2 = dfsf['hb'].values
+hbeta3 = dfcomp['hb'].values
+
+plot_bpt1(d4000, oiii, hbeta, d40002, oiii2, hbeta2, d40003, oiii3, hbeta3, s = 1, alpha = .5)
+
+
+# In[34]:
+
+
+def plot_bpt2(d4000, oiii, hbeta, d40002, oiii2, hbeta2, fig=None,**kwargs):
+    d4000=np.array(d4000,dtype=float)
+    d40002=np.array(d40002,dtype=float)
+    oiii=np.array(oiii,dtype=float)
+    oiii2=np.array(oiii2,dtype=float)
+    hbeta=np.array(hbeta, dtype=float)
+    hbeta2=np.array(hbeta2, dtype=float)
+    d4000p=np.log10(d4000)
+    d4000p2=np.log10(d40002)
+    o3hb=np.log10(oiii/hbeta)
+    o3hb2=np.log10(oiii2/hbeta2)
+    agn = plt.scatter(d4000p, o3hb, **kwargs, c='r')
+    sf = plt.scatter(d4000p2, o3hb2, **kwargs, c='g')
+    plt.legend([agn, sf], ['AGN', 'Star-Forming'])
+    plt.xlim(0.75,1.5)
+    plt.ylim(-1.5,1.5)
+    plt.xlabel(r'$log_{10}(D4000)$')
+    plt.ylabel(r'$log_{10}($[OIII]/h$\beta)$')
+    plt.show()
+    return
+
+
+# In[35]:
+
+
+d4000 = dfagn['d4000'].values 
+d40002 = dfsf['d4000'].values
+oiii = dfagn['o3'].values 
+oiii2 = dfsf['o3'].values
+hbeta = dfagn['hb'].values 
+hbeta2 = dfsf['hb'].values
+
+plot_bpt2(d4000, oiii, hbeta, d40002, oiii2, hbeta2, s = 1, alpha = .5)
+
+
+# In[45]:
+
+
+def plot_bpt3(d4000, oiii, hbeta, d40002, oiii2, hbeta2, d40003, oiii3, hbeta3, fig=None,**kwargs):
+    d4000=np.array(d4000,dtype=float)
+    d40002=np.array(d40002,dtype=float)
+    d40003=np.array(d40003,dtype=float)
+    oiii=np.array(oiii,dtype=float)
+    oiii2=np.array(oiii2,dtype=float)
+    oiii3=np.array(oiii3,dtype=float)
+    hbeta=np.array(hbeta, dtype=float)
+    hbeta2=np.array(hbeta2, dtype=float)
+    hbeta3=np.array(hbeta3, dtype=float)
+    o3hb=np.log10(oiii/hbeta)
+    o3hb2=np.log10(oiii2/hbeta2)
+    o3hb3=np.log10(oiii3/hbeta3)
+    agn = plt.scatter(d4000, o3hb, **kwargs, c='r')
+    sf = plt.scatter(d40002, o3hb2, **kwargs, c='g')
+    comp = plt.scatter(d40003, o3hb3, **kwargs, c='y')
+    plt.legend([agn, sf, comp], ['AGN', 'Star-Forming', 'Composite'])
+    plt.xlim(5,25)
+    plt.ylim(-2.0,2.0)
+    plt.xlabel('D4000')
+    plt.ylabel(r'$log_{10}($[OIII]/h$\beta)$')
+    plt.show()
+    return
+
+
+# In[46]:
+
+
+d4000 = dfagn['d4000'].values 
+d40002 = dfsf['d4000'].values
+d40003 = dfcomp['d4000'].values
+oiii = dfagn['o3'].values 
+oiii2 = dfsf['o3'].values
+oiii3 = dfcomp['o3'].values
+hbeta = dfagn['hb'].values 
+hbeta2 = dfsf['hb'].values
+hbeta3 = dfcomp['hb'].values
+
+plot_bpt3(d4000, oiii, hbeta, d40002, oiii2, hbeta2, d40003, oiii3, hbeta3, s = 1, alpha = .5)
+
+
+# In[49]:
+
+
+def plot_bpt4(d4000, oiii, hbeta, d40002, oiii2, hbeta2, fig=None,**kwargs):
+    d4000=np.array(d4000,dtype=float)
+    d40002=np.array(d40002,dtype=float)
+    oiii=np.array(oiii,dtype=float)
+    oiii2=np.array(oiii2,dtype=float)
+    hbeta=np.array(hbeta, dtype=float)
+    hbeta2=np.array(hbeta2, dtype=float)
+    o3hb=np.log10(oiii/hbeta)
+    o3hb2=np.log10(oiii2/hbeta2)
+    agn = plt.scatter(d4000, o3hb, **kwargs, c='r')
+    sf = plt.scatter(d40002, o3hb2, **kwargs, c='g')
+    plt.legend([agn, sf], ['AGN', 'Star-Forming'])
+    plt.xlim(5.0,25)
+    plt.ylim(-2.0,2.0)
+    plt.xlabel('D4000')
+    plt.ylabel(r'$log_{10}($[OIII]/h$\beta)$')
+    plt.show()
+    return
+
+
+# In[50]:
+
+
+d4000 = dfagn['d4000'].values 
+d40002 = dfsf['d4000'].values
+oiii = dfagn['o3'].values 
+oiii2 = dfsf['o3'].values
+hbeta = dfagn['hb'].values 
+hbeta2 = dfsf['hb'].values
+
+plot_bpt4(d4000, oiii, hbeta, d40002, oiii2, hbeta2, s = 1, alpha = .5)
+
+
+# In[ ]:
+
+
+
+
